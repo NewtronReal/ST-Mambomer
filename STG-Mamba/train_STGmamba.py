@@ -9,12 +9,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.autograd import Variable
 
-y = []  # by me
-
 def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mamba_features=307):
-    # 'mamba_features=184' if we use Knowair dataset;
-    # 'mamba_features=307' if we use PEMS04 datastet;
-    # 'mamba_features=80' if we use HZ_Metro dataset;
     inputs, labels = next(iter(train_dataloader))
     [batch_size, step_size, fea_size] = inputs.size()
     input_dim = fea_size
@@ -25,7 +20,7 @@ def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mam
         K=K,
         A=torch.Tensor(A),
         feature_size=A.shape[0],
-        d_model=fea_size,  # hidden_dim is fea_size
+        d_model=fea_size,
         n_layer=4,
         features=mamba_features
     )
@@ -47,7 +42,7 @@ def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mam
     losses_interval_train = []
     losses_valid = []
     losses_interval_valid = []
-    losses_epoch = []  # Initialize the list for epoch losses
+    losses_epoch = []
 
     cur_time = time.time()
     pre_time = time.time()
@@ -74,19 +69,17 @@ def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mam
             kfgn_mamba.zero_grad()
 
             labels = torch.squeeze(labels)
-            pred = kfgn_mamba(inputs)  # Updated to use new model directly
+            pred = kfgn_mamba(inputs)
 
             loss_train = loss_MSE(pred, labels)
 
             optimizer.zero_grad()
             loss_train.backward()
             optimizer.step()
-            # Update learning rate by CosineAnnealingLR
             scheduler.step()
 
             losses_train.append(loss_train.data)
 
-            # validation
             try:
                 inputs_val, labels_val = next(valid_dataloader_iter)
             except StopIteration:
@@ -188,10 +181,8 @@ def TestSTG_Mamba(kfgn_mamba, test_dataloader, max_speed):
         RMSEs.append(RMSE)
         VARs.append(VAR.item())
 
-        # Reshape pred to 2D before creating DataFrame
         #predictions.append(pd.DataFrame(pred.cpu().data.numpy().reshape(-1, fea_size)))
         #ground_truths.append(pd.DataFrame(labels.cpu().data.numpy()))
-        y.append(pred.cpu().data.numpy())  # by me
 
         tested_batch += 1
 
@@ -216,7 +207,7 @@ def TestSTG_Mamba(kfgn_mamba, test_dataloader, max_speed):
     std_l1 = np.std(losses_l1) * max_speed
     mean_mse = np.mean(losses_mse) * max_speed
     MAE_ = np.mean(MAEs) * max_speed
-    std_MAE_ = np.std(MAEs) * max_speed #std_MAE measures the consistency & stability of the model's performance across different test sets or iterations. Usually if (std_MAE/MSE)<=10%., means the trained model is good.
+    std_MAE_ = np.std(MAEs) * max_speed
     MAPE_ = np.mean(MAPEs) * 100
     MSE_ = np.mean(MSEs) * (max_speed ** 2)
     RMSE_ = np.mean(RMSEs) * max_speed
