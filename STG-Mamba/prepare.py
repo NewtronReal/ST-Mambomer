@@ -3,18 +3,6 @@ import numpy as np
 import torch
 
 def PrepareDataset(speed_matrix, BATCH_SIZE=48, seq_len=12, pred_len=12, train_propotion=0.7, valid_propotion=0.1):
-    """ Prepare Train & Test datasets and dataloaders
-
-    Convert traffic/weather/volume matrix to train and test dataset.
-
-    Args:
-        speed_matrix: The whole spatial-temporal dataset matrix. (It doesn't necessarily means speed, but can also be flow or weather matrix).
-        seq_len: The length of input sequence.
-        pred_len: The length of prediction sequence, match the seq_len for model compatibility.
-    Return:
-        Train_dataloader
-        Test_dataloader
-    """
     time_len = speed_matrix.shape[0]
     #max_speed = speed_matrix.max().max()
     #speed_matrix = speed_matrix / max_speed
@@ -30,10 +18,8 @@ def PrepareDataset(speed_matrix, BATCH_SIZE=48, seq_len=12, pred_len=12, train_p
         speed_labels.append(speed_matrix.iloc[i + seq_len:i + seq_len + pred_len].values)
     speed_sequences, speed_labels = np.asarray(speed_sequences), np.asarray(speed_labels)
 
-    # Reshape labels to have the same second dimension as the sequences
     speed_labels = speed_labels.reshape(speed_labels.shape[0], seq_len, -1)
 
-    # shuffle & split the dataset to training and testing sets
     sample_size = speed_sequences.shape[0]
     index = np.arange(sample_size, dtype=int)
     np.random.shuffle(index)
