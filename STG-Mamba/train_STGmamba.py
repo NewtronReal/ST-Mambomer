@@ -1,3 +1,5 @@
+from STGMamba import *
+
 import time
 import numpy as np
 import math
