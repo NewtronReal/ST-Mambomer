@@ -13,7 +13,6 @@ from einops import rearrange, repeat, einsum
 from typing import Union
 
 
-# KFGN (Kalman Filtering Graph Neural Networks) Model
 class KFGN(nn.Module):
     def __init__(self, K, A, feature_size, Clamp_A=True):
         super(KFGN, self).__init__()
@@ -55,7 +54,6 @@ class KFGN(nn.Module):
         self.rol = nn.Linear(input_size + hidden_size, hidden_size)
         self.rCl = nn.Linear(input_size + hidden_size, hidden_size)
 
-        # addtional vars
         self.c = torch.nn.Parameter(torch.Tensor([1]))
 
         self.fc1 = nn.Linear(64, hidden_size)
@@ -117,13 +115,11 @@ class KFGN(nn.Module):
         rCell_State = rf * rCell_State + ri * rC
         rHidden_State = ro * torch.tanh(rCell_State)
 
-        # Kalman Filtering
         var1, var2 = torch.var(input), torch.var(gc)
 
         pred = (Hidden_State * var1 * self.c + rHidden_State * var2) / (var1 + var2 * self.c)
 
         return pred
-        #return Hidden_State, Cell_State, gc, rHidden_State, rCell_State, pred
 
     def Bi_torch(self, a):
         a[a < 0] = 0
@@ -170,7 +166,6 @@ class KFGN(nn.Module):
             rCell_State = Variable(Cell_State_data.cuda(), requires_grad=True)
             return Hidden_State, Cell_State, rHidden_State, rCell_State
 
-# Mamba Network
 @dataclass
 class ModelArgs:
     d_model: int
@@ -200,9 +195,6 @@ class KFGN_Mamba(nn.Module):
         self.encode = nn.Linear(args.features, args.d_model)
         self.encoder_layers = nn.ModuleList([ResidualBlock(args,self.kfgn) for _ in range(args.n_layer)])
         self.encoder_norm = RMSNorm(args.d_model)
-        # Decoder (identical to Encoder)
-        ##self.decoder_layers = nn.ModuleList([ResidualBlock(args) for _ in range(args.n_layer)]) #You can optionally uncommand these lines to use the identical Decoder.
-        ##self.decoder_norm = RMSNorm(args.d_model) #You can optionally uncommand these lines to use the identical Decoder.
         self.decode = nn.Linear(args.d_model, args.features)
 
     def forward(self, input_ids):
@@ -210,18 +202,11 @@ class KFGN_Mamba(nn.Module):
         for layer in self.encoder_layers:
             x = layer(x)
         x = self.encoder_norm(x)
-        # Decoder
-        ##for layer in self.decoder_layers:#You can optionally uncommand these lines to use the identical Decoder.
-        ##    x = layer(x) #You can optionally uncommand these lines to use the identical Decoder.
-        ##x = self.decoder_norm(x) #You can optionally uncommand these lines to use the identical Decoder.
 
-        # Output
         x = self.decode(x)
 
         return x
 
-
-# Residual Block in Mamba Model
 class ResidualBlock(nn.Module):
     def __init__(self, args: ModelArgs, kfgn: KFGN):
         super().__init__()
@@ -306,15 +291,12 @@ class MambaBlock(nn.Module):
     def selective_scan(self, u, delta, A, B, C, D):
         (b, l, d_in) = u.shape
         n = A.shape[1]
-        # This is the new version of Selective Scan Algorithm named as "Graph Selective Scan"
-        #In Graph Selective Scan, we use the Feed-Forward graph information from KFGN, and incorporate the Feed-Forward information with "delta"
         temp_adj = self.kfgn.gc_list[-1].get_transformed_adjacency()
         temp_adj_padded = torch.ones(d_in, d_in, device=temp_adj.device)
         temp_adj_padded[:temp_adj.size(0), :temp_adj.size(1)] = temp_adj
 
         delta_p = torch.matmul(delta,temp_adj_padded)
 
-        # The fused param delta_p will participate in the following upgrading of deltaA and deltaB_u
         deltaA = torch.exp(einsum(delta_p, A, 'b l d_in, d_in n -> b l d_in n'))
         deltaB_u = einsum(delta_p, B, u, 'b l d_in, b l n, b l d_in -> b l d_in n')
 
@@ -324,7 +306,7 @@ class MambaBlock(nn.Module):
             x = deltaA[:, i] * x + deltaB_u[:, i]
             y = einsum(x, C[:, i, :], 'b d_in n, b n -> b d_in')
             ys.append(y)
-        y = torch.stack(ys, dim=1)  # shape (b, l, d_in)
+        y = torch.stack(ys, dim=1)
 
         y = y + u * D
 
