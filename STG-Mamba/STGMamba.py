@@ -1,3 +1,5 @@
+from modules import DynamicFilterGNN
+
 import math
 import numpy as np
 import torch
