@@ -1,4 +1,8 @@
 import pandas as pd
+
+from prepare import *
+from train_STGmamba import *
+
 print("\nLoading PEMS04 data...")
 speed_matrix = pd.read_csv('pems04_flow.csv',sep=',')
 A = np.load('pems04_adj.npy')
