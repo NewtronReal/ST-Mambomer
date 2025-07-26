@@ -11,6 +11,7 @@ from einops import rearrange, repeat, einsum
 from typing import Union
 
 from GraphormerGraphEncoder import *
+from modules import DynamicFilterGNN
 
 
 # KFGN (Kalman Filtering Graph Neural Networks) Model
