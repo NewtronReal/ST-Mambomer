@@ -7,6 +7,8 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.autograd import Variable
 
+from STGMamba import *
+
 y = []  # by me
 
 def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mamba_features=300):
