@@ -118,9 +118,7 @@ class GraphormerGraphEncoder(nn.Module):
             self,
             x,
             attn_bias=None,
-            # perturb=None,
             last_state_only: bool = True,
-            # token_embeddings: Optional[torch.Tensor] = None,
             attn_mask: Optional[torch.Tensor] = None,
             get_attn_scores=False,
     ) -> Union[Tensor, list[torch.Tensor]]:
