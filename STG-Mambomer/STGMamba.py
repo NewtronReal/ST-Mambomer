@@ -10,11 +10,7 @@ from dataclasses import dataclass
 from einops import rearrange, repeat, einsum
 from typing import Union
 
-from GraphormerGraphEncoder import *
-from modules import DynamicFilterGNN
 
-
-# KFGN (Kalman Filtering Graph Neural Networks) Model
 class KFGN(nn.Module):
     def __init__(self, K, A, feature_size, Clamp_A=True):
         super(KFGN, self).__init__()
@@ -118,60 +114,12 @@ class KFGN(nn.Module):
         rCell_State = rf * rCell_State + ri * rC
         rHidden_State = ro * torch.tanh(rCell_State)
 
-        # Kalman Filtering
         var1, var2 = torch.var(input), torch.var(gc)
 
         pred = (Hidden_State * var1 * self.c + rHidden_State * var2) / (var1 + var2 * self.c)
 
         return pred
-        #return Hidden_State, Cell_State, gc, rHidden_State, rCell_State, pred
 
-    def Bi_torch(self, a):
-        a[a < 0] = 0
-        a[a > 0] = 1
-        return a
-
-    def loop(self, inputs):
-        batch_size = inputs.size(0)
-        time_step = inputs.size(1)
-        Hidden_State, Cell_State, rHidden_State, rCell_State = self.initHidden(batch_size)
-        for i in range(time_step):
-            Hidden_State, Cell_State, gc, rHidden_State, rCell_State, pred = self.forward(
-                torch.squeeze(inputs[:, i:i + 1, :]), Hidden_State, Cell_State, rHidden_State, rCell_State)
-        return pred
-
-
-    def initHidden(self, batch_size):
-        use_gpu = torch.cuda.is_available()
-        if use_gpu:
-            Hidden_State = Variable(torch.zeros(batch_size, self.hidden_size).cuda())
-            Cell_State = Variable(torch.zeros(batch_size, self.hidden_size).cuda())
-            rHidden_State = Variable(torch.zeros(batch_size, self.hidden_size).cuda())
-            rCell_State = Variable(torch.zeros(batch_size, self.hidden_size).cuda())
-            return Hidden_State, Cell_State, rHidden_State, rCell_State
-        else:
-            Hidden_State = Variable(torch.zeros(batch_size, self.hidden_size))
-            Cell_State = Variable(torch.zeros(batch_size, self.hidden_size))
-            rHidden_State = Variable(torch.zeros(batch_size, self.hidden_size))
-            rCell_State = Variable(torch.zeros(batch_size, self.hidden_size))
-            return Hidden_State, Cell_State, rHidden_State, rCell_State
-
-    def reinitHidden(self, batch_size, Hidden_State_data, Cell_State_data):
-        use_gpu = torch.cuda.is_available()
-        if use_gpu:
-            Hidden_State = Variable(Hidden_State_data.cuda(), requires_grad=True)
-            Cell_State = Variable(Cell_State_data.cuda(), requires_grad=True)
-            rHidden_State = Variable(Hidden_State_data.cuda(), requires_grad=True)
-            rCell_State = Variable(Cell_State_data.cuda(), requires_grad=True)
-            return Hidden_State, Cell_State, rHidden_State, rCell_State
-        else:
-            Hidden_State = Variable(Hidden_State_data, requires_grad=True)
-            Cell_State = Variable(Cell_State_data, requires_grad=True)
-            rHidden_State = Variable(Hidden_State_data.cuda(), requires_grad=True)
-            rCell_State = Variable(Cell_State_data.cuda(), requires_grad=True)
-            return Hidden_State, Cell_State, rHidden_State, rCell_State
-
-# Mamba Network
 @dataclass
 class ModelArgs:
     d_model: int
@@ -201,9 +149,7 @@ class KFGN_Mamba(nn.Module):
         self.encode = nn.Linear(args.features, args.d_model)
         self.encoder_layers = nn.ModuleList([ResidualBlock(args,self.kfgn) for _ in range(args.n_layer)])
         self.encoder_norm = RMSNorm(args.d_model)
-        # Decoder (identical to Encoder)
-        ##self.decoder_layers = nn.ModuleList([ResidualBlock(args) for _ in range(args.n_layer)]) #You can optionally uncommand these lines to use the identical Decoder.
-        ##self.decoder_norm = RMSNorm(args.d_model) #You can optionally uncommand these lines to use the identical Decoder.
+
         self.decode = nn.Linear(args.d_model, args.features)
 
     def forward(self, input_ids):
@@ -211,18 +157,11 @@ class KFGN_Mamba(nn.Module):
         for layer in self.encoder_layers:
             x = layer(x)
         x = self.encoder_norm(x)
-        # Decoder
-        ##for layer in self.decoder_layers:#You can optionally uncommand these lines to use the identical Decoder.
-        ##    x = layer(x) #You can optionally uncommand these lines to use the identical Decoder.
-        ##x = self.decoder_norm(x) #You can optionally uncommand these lines to use the identical Decoder.
 
-        # Output
         x = self.decode(x)
 
         return x
 
-
-# Residual Block in Mamba Model
 class ResidualBlock(nn.Module):
     def __init__(self, args: ModelArgs, kfgn: KFGN):
         super().__init__()
@@ -302,18 +241,14 @@ class MambaBlock(nn.Module):
 
         att = self.gge(x)[0]
 
-        # y = self.selective_scan(x, delta, A, B, C, D)
         y = self.selective_scan(x, delta, A, B, B_att, C, D, att)
 
         return y
 
 
     def selective_scan(self, u, delta, A, B, B_att, C, D, att):
-    # def selective_scan(self, u, delta, A, B, C, D):
         (b, l, d_in) = u.shape
         n = A.shape[1]
-        # This is the new version of Selective Scan Algorithm named as "Graph Selective Scan"
-        #In Graph Selective Scan, we use the Feed-Forward graph information from KFGN, and incorporate the Feed-Forward information with "delta"
         temp_adj = self.kfgn.gc_list[-1].get_transformed_adjacency()
         temp_adj_padded = torch.ones(d_in, d_in, device=temp_adj.device)
         temp_adj_padded[:temp_adj.size(0), :temp_adj.size(1)] = temp_adj
@@ -325,7 +260,6 @@ class MambaBlock(nn.Module):
         att = att.permute(1, 0, 2)
 
 
-        # The fused param delta_p will participate in the following upgrading of deltaA and deltaB_u
         deltaA = torch.exp(einsum(delta_p, A, 'b l d_in, d_in n -> b l d_in n'))
         deltaB_u = einsum(delta_p, B, u, 'b l d_in, b l n, b l d_in -> b l d_in n')
         deltaC_a = einsum(delta_p, B_att, att, 'b l d_in, b l n, b l d_in -> b l d_in n')
