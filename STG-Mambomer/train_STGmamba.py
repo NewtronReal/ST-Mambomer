@@ -7,14 +7,9 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.autograd import Variable
 
-from STGMamba import *
-
-y = []  # by me
+y = []
 
 def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mamba_features=300):
-    # 'mamba_features=184' if we use Knowair dataset;
-    # 'mamba_features=307' if we use PEMS04 datastet;
-    # 'mamba_features=80' if we use HZ_Metro dataset;
     inputs, labels = next(iter(train_dataloader))
     [batch_size, step_size, fea_size] = inputs.size()
     input_dim = fea_size
@@ -25,7 +20,7 @@ def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mam
         K=K,
         A=torch.Tensor(A),
         feature_size=A.shape[0],
-        d_model=fea_size,  # hidden_dim is fea_size
+        d_model=fea_size,
         n_layer=4,
         features=mamba_features
     )
@@ -47,7 +42,7 @@ def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mam
     losses_interval_train = []
     losses_valid = []
     losses_interval_valid = []
-    losses_epoch = []  # Initialize the list for epoch losses
+    losses_epoch = []
 
     cur_time = time.time()
     pre_time = time.time()
@@ -74,19 +69,17 @@ def TrainSTG_Mamba(train_dataloader, valid_dataloader, A, K=3, num_epochs=1, mam
             kfgn_mamba.zero_grad()
 
             labels = torch.squeeze(labels)
-            pred = kfgn_mamba(inputs)  # Updated to use new model directly
+            pred = kfgn_mamba(inputs)
 
             loss_train = loss_MSE(pred, labels)
 
             optimizer.zero_grad()
             loss_train.backward()
             optimizer.step()
-            # Update learning rate by CosineAnnealingLR
             scheduler.step()
 
             losses_train.append(loss_train.data)
 
-            # validation
             try:
                 inputs_val, labels_val = next(valid_dataloader_iter)
             except StopIteration:
@@ -169,7 +162,6 @@ def TestSTG_Mamba(kfgn_mamba, test_dataloader, max_speed):
         loss_l1 = F.l1_loss(pred, labels)
         MAE = torch.mean(torch.abs(pred - torch.squeeze(labels)))
         MAPE = torch.mean(torch.abs(pred - torch.squeeze(labels)) / torch.abs(torch.squeeze(labels)))
-        # Calculate MAPE only for non-zero labels
         non_zero_labels = torch.abs(labels) > 0
         if torch.any(non_zero_labels):
             MAPE_values = torch.abs(pred - torch.squeeze(labels)) / torch.abs(torch.squeeze(labels))
