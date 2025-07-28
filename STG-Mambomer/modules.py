@@ -15,7 +15,6 @@ class DynamicFilterGNN(nn.Module):
 
         use_gpu = torch.cuda.is_available()
         self.filter_adjacency_matrix = None
-        #self.base_filter = nn.Parameter(torch.Tensor(in_features, in_features))
         if use_gpu:
             self.filter_adjacency_matrix = Variable(filter_adjacency_matrix.cuda(), requires_grad=False)
         else:
